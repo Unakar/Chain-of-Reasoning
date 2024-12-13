@@ -6,16 +6,23 @@ import matplotlib.pyplot as plt
 %matplotlib inline
 import cv2
 from PIL import Image
-
+import requests
 import torch
 import torch.nn.functional as F
-
+from io import BytesIO
 from llava.constants import IMAGE_TOKEN_INDEX, DEFAULT_IMAGE_TOKEN, DEFAULT_IM_START_TOKEN, DEFAULT_IM_END_TOKEN
 from llava.conversation import conv_templates, SeparatorStyle
 from llava.model.builder import load_pretrained_model
 from llava.utils import disable_torch_init
 from llava.mm_utils import process_images, tokenizer_image_token, get_model_name_from_path
 
+def load_image(image_path_or_url):
+    if image_path_or_url.startswith('http://') or image_path_or_url.startswith('https://'):
+        response = requests.get(image_path_or_url)
+        image = Image.open(BytesIO(response.content)).convert('RGB')
+    else:
+        image = Image.open(image_path_or_url).convert('RGB')
+    return image
 
 # ===> specify the model path
 model_path = "liuhaotian/llava-v1.5-7b"
@@ -168,30 +175,4 @@ with torch.inference_mode():
 text_second = tokenizer.decode(outputs_second["sequences"][0]).strip()
 print("Second run output:", text_second)
 
-# 移除hook
-for h in hook_handles:
-    h.remove()
 
-# # 接下来是之前的attention可视化部分（如不需要可省略）
-# aggregated_prompt_attention = []
-# for i, layer in enumerate(outputs_second["attentions"][0]):
-#     layer_attns = layer.squeeze(0)
-#     attns_per_head = layer_attns.mean(dim=0)
-#     cur = attns_per_head[:-1].cpu().clone()
-#     cur[1:, 0] = 0.
-#     cur[1:] = cur[1:] / cur[1:].sum(-1, keepdim=True)
-#     aggregated_prompt_attention.append(cur)
-# aggregated_prompt_attention = torch.stack(aggregated_prompt_attention).mean(dim=0)
-
-# llm_attn_matrix = heterogenous_stack(
-#     [torch.tensor([1])]
-#     + list(aggregated_prompt_attention) 
-#     + list(map(aggregate_llm_attention, outputs_second["attentions"]))
-# )
-
-# gamma_factor = 1
-# enhanced_attn_m = np.power(llm_attn_matrix.numpy(), 1 / gamma_factor)
-
-# fig, ax = plt.subplots(figsize=(10, 20), dpi=150)
-# ax.imshow(enhanced_attn_m, vmin=enhanced_attn_m.min(), vmax=enhanced_attn_m.max(), interpolation="nearest")
-# plt.show()
